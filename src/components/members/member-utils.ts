@@ -6,6 +6,8 @@ import type {
 export type PaymentRecord = PaymentHistoryData & {
   paymentType?: "Admission" | "Monthly";
   amount?: number;
+  paymentForMonth?: number;
+  paymentForYear?: number;
   paymentMonth?: number;
   paymentYear?: number;
   paymentDate?: string;
@@ -60,10 +62,15 @@ export function getMonthlyPaymentKeys(payments: PaymentRecord[]) {
       .filter(
         (payment) =>
           payment.paymentType === "Monthly" &&
-          payment.paymentMonth &&
-          payment.paymentYear
+          (payment.paymentForMonth ?? payment.paymentMonth) &&
+          (payment.paymentForYear ?? payment.paymentYear)
       )
-      .map((payment) => monthKey(payment.paymentMonth!, payment.paymentYear!))
+      .map((payment) =>
+        monthKey(
+          (payment.paymentForMonth ?? payment.paymentMonth)!,
+          (payment.paymentForYear ?? payment.paymentYear)!
+        )
+      )
   );
 }
 

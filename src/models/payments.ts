@@ -20,20 +20,40 @@ const paymentSchema = new Schema(
       min: 0,
     },
 
-paymentMonth: {
-  type: Number,
-  min: 1,
-  max: 12,
-  required: function (this: { paymentType: string }) {
-    return this.paymentType === "Monthly";
-  },
-},
+    paymentForMonth: {
+      type: Number,
+      min: 1,
+      max: 12,
+      default: undefined,
+      required: [
+        function (this: { paymentType?: string }) {
+          return this.paymentType === "Monthly";
+        },
+        "Payment for month is required for monthly payments.",
+      ],
+    },
+
+    paymentForYear: {
+      type: Number,
+      default: undefined,
+      required: [
+        function (this: { paymentType?: string }) {
+          return this.paymentType === "Monthly";
+        },
+        "Payment for year is required for monthly payments.",
+      ],
+    },
+
+    paymentMonth: {
+      type: Number,
+      min: 1,
+      max: 12,
+      default: undefined,
+    },
 
     paymentYear: {
       type: Number,
-      required: function () {
-        return this.paymentType === "Monthly";
-      },
+      default: undefined,
     },
 
     paymentDate: {
@@ -61,10 +81,14 @@ paymentMonth: {
 // Admission payments do not need month/year
 paymentSchema.pre("validate", function (this: {
   paymentType: string;
+  paymentForMonth?: number;
+  paymentForYear?: number;
   paymentMonth?: number;
   paymentYear?: number;
 }) {
   if (this.paymentType === "Admission") {
+    this.paymentForMonth = undefined;
+    this.paymentForYear = undefined;
     this.paymentMonth = undefined;
     this.paymentYear = undefined;
   }
@@ -75,8 +99,8 @@ paymentSchema.index(
   {
     memberId: 1,
     paymentType: 1,
-    paymentMonth: 1,
-    paymentYear: 1,
+    paymentForMonth: 1,
+    paymentForYear: 1,
   },
   {
     unique: true,

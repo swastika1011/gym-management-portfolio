@@ -15,7 +15,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import { EmptyState } from "@/components/common/EmptyState";
 import { SearchInput } from "@/components/common/SearchInput";
@@ -41,6 +41,7 @@ export interface DataTableProps<TData> {
   enableSearch?: boolean;
   toolbarAction?: ReactNode;
   rowActions?: (row: Row<TData>) => ReactNode;
+  onRowClick?: (row: Row<TData>) => void;
   emptyTitle?: string;
   emptyDescription?: string;
   loadingRows?: number;
@@ -51,6 +52,9 @@ export interface DataTableProps<TData> {
   pagination?: PaginationState;
   onPaginationChange?: OnChangeFn<PaginationState>;
   initialPageSize?: number;
+  totalCount?: number;
+  maxHeight?: "sm" | "md" | "lg" | "none";
+  tableContainerClassName?: string;
   className?: string;
   tableClassName?: string;
 }
@@ -65,6 +69,7 @@ export function DataTable<TData>({
   enableSearch = true,
   toolbarAction,
   rowActions,
+  onRowClick,
   emptyTitle = "No results found",
   emptyDescription = "Try adjusting your search or filters.",
   loadingRows = 5,
@@ -75,6 +80,9 @@ export function DataTable<TData>({
   pagination,
   onPaginationChange,
   initialPageSize = 10,
+  totalCount,
+  maxHeight = "md",
+  tableContainerClassName,
   className,
   tableClassName,
 }: DataTableProps<TData>) {
@@ -101,7 +109,10 @@ export function DataTable<TData>({
         enableSorting: false,
         enableGlobalFilter: false,
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
+          <div
+            className="flex items-center justify-end gap-1"
+            onClick={(event) => event.stopPropagation()}
+          >
             {rowActions(row)}
           </div>
         ),
@@ -135,6 +146,19 @@ export function DataTable<TData>({
 
   const visibleColumnCount = table.getAllLeafColumns().length || 1;
   const rows = table.getRowModel().rows;
+  const recordCount = totalCount ?? data.length;
+  const pageIndex = table.getState().pagination.pageIndex;
+  const pageSize = table.getState().pagination.pageSize;
+  const resolvedPageCount = Math.max(table.getPageCount(), 1);
+  const firstRecord =
+    recordCount === 0 ? 0 : Math.min(pageIndex * pageSize + 1, recordCount);
+  const lastRecord = Math.min((pageIndex + 1) * pageSize, recordCount);
+  const maxHeightClass = {
+    sm: "max-h-[420px]",
+    md: "max-h-[580px]",
+    lg: "max-h-[720px]",
+    none: "max-h-none",
+  }[maxHeight];
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -154,14 +178,20 @@ export function DataTable<TData>({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-[18px] border border-[#FFAA83] bg-white shadow-sm">
+      <div
+        className={cn(
+          "overflow-auto rounded-[18px] border border-[#FFAA83] bg-white shadow-sm",
+          maxHeightClass,
+          tableContainerClassName
+        )}
+      >
         <Table
           className={cn(
             "min-w-full [font-family:Raleway,var(--font-geist-sans),sans-serif] text-[14px]",
             tableClassName
           )}
         >
-          <TableHeader className="bg-[#FFEADE]/60">
+          <TableHeader className="sticky top-0 z-10 bg-[#FFEADE] shadow-[0_1px_0_#FFAA83]">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="border-[#FFAA83] hover:bg-transparent">
                 {headerGroup.headers.map((header) => {
@@ -220,8 +250,12 @@ export function DataTable<TData>({
               rows.map((row) => (
                 <TableRow
                   key={row.id}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
                   data-state={row.getIsSelected() ? "selected" : undefined}
-                  className="border-[#FFAA83] text-[#3F0000] hover:bg-[#FFEADE]/40"
+                  className={cn(
+                    "border-[#FFAA83] text-[#3F0000] hover:bg-[#FFEADE]/40",
+                    onRowClick && "cursor-pointer"
+                  )}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="px-3 py-3">
@@ -246,12 +280,11 @@ export function DataTable<TData>({
       </div>
 
       {enablePagination ? (
-        <div className="flex flex-col gap-2 text-[14px] text-[#737373] sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {Math.max(table.getPageCount(), 1)}
+        <div className="flex flex-col gap-3 text-[14px] text-[#737373] sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-medium">
+            Showing {firstRecord}-{lastRecord} of {recordCount} records
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button
               type="button"
               variant="outline"
@@ -260,9 +293,12 @@ export function DataTable<TData>({
               disabled={!table.getCanPreviousPage()}
               className="rounded-xl border-[#FFAA83] text-[14px] font-semibold text-[#3F0000] hover:bg-[#FFEADE]"
             >
-              <ChevronLeft className="size-4" aria-hidden="true" />
+              <ArrowLeft className="size-4" aria-hidden="true" />
               Previous
             </Button>
+            <span className="rounded-xl border border-[#FFAA83] bg-white px-3 py-1.5 text-center text-[14px] font-semibold text-[#3F0000]">
+              Page {pageIndex + 1} of {resolvedPageCount}
+            </span>
             <Button
               type="button"
               variant="outline"
@@ -272,7 +308,7 @@ export function DataTable<TData>({
               className="rounded-xl border-[#FFAA83] text-[14px] font-semibold text-[#3F0000] hover:bg-[#FFEADE]"
             >
               Next
-              <ChevronRight className="size-4" aria-hidden="true" />
+              <ArrowRight className="size-4" aria-hidden="true" />
             </Button>
           </div>
         </div>

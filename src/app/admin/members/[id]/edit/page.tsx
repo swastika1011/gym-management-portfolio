@@ -4,6 +4,8 @@ import { getMemberById } from "@/actions/member.actions";
 import { PageHeader } from "@/components/common/PageHeader";
 import { MemberForm } from "@/components/members/MemberForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function EditMemberPage({
   params,
 }: {

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CreditCard, Pencil } from "lucide-react";
 
 import { getMemberById } from "@/actions/member.actions";
+import { EmptyState } from "@/components/common/EmptyState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -24,6 +25,8 @@ import {
 } from "@/components/members/member-utils";
 import { Button } from "@/components/ui/button";
 
+export const dynamic = "force-dynamic";
+
 export default async function MemberProfilePage({
   params,
   searchParams,
@@ -42,8 +45,17 @@ export default async function MemberProfilePage({
       : now.getFullYear();
   const response = await getMemberById(id, { attendanceYear: selectedYear });
 
-  if (!response.success || !response.data) {
+  if (!response.data && response.message === "Member not found.") {
     notFound();
+  }
+
+  if (!response.success || !response.data) {
+    return (
+      <EmptyState
+        title="Unable to load member profile"
+        description={response.message}
+      />
+    );
   }
 
   const { member } = response.data;
@@ -93,9 +105,7 @@ export default async function MemberProfilePage({
               redirectTo="/admin/members"
             />
             <Button
-              render={
-                <Link href={`/admin/payments/new?member=${member._id}`} />
-              }
+              render={<Link href={`/admin/payments?member=${member._id}`} />}
               size="sm"
               className="rounded-xl bg-[#9A3412] text-[14px] font-semibold text-white hover:bg-[#7C2D12]"
             >

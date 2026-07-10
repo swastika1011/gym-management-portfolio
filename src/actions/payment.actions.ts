@@ -6,8 +6,8 @@ import { connectDB } from "@/lib/mongodb";
 import Member from "@/models/member";
 import Payment from "@/models/payments";
 
-type PaymentType = "Admission" | "Monthly";
-type PaymentMode = "Cash" | "UPI";
+export type PaymentType = "Admission" | "Monthly";
+export type PaymentMode = "Cash" | "UPI";
 type SerializedRecord = Record<string, unknown>;
 
 export type ActionResponse<T = undefined> = {
@@ -19,9 +19,20 @@ export type ActionResponse<T = undefined> = {
 export type RecordPaymentInput = {
   memberId: string;
   paymentType: PaymentType;
+  amount?: number;
   paymentMode: PaymentMode;
-  paymentMonth?: number;
-  paymentYear?: number;
+  paymentDate?: Date | string;
+  paymentForMonth?: number;
+  paymentForYear?: number;
+  remarks?: string;
+};
+
+export type UpdatePaymentInput = {
+  amount?: number;
+  paymentMode?: PaymentMode;
+  paymentDate?: Date | string;
+  paymentForMonth?: number;
+  paymentForYear?: number;
   remarks?: string;
 };
 
@@ -31,6 +42,7 @@ export type GetPaymentsFilters = {
   paymentType?: PaymentType;
   paymentMode?: PaymentMode;
   memberName?: string;
+  memberId?: string;
 };
 
 export type PaymentData = {
@@ -38,6 +50,8 @@ export type PaymentData = {
   memberId: string | SerializedRecord;
   paymentType: PaymentType;
   amount: number;
+  paymentForMonth?: number;
+  paymentForYear?: number;
   paymentMonth?: number;
   paymentYear?: number;
   paymentDate: string;
@@ -56,6 +70,25 @@ export type PendingPaymentData = {
   outstandingAmount: number;
   pendingMonths: number;
   lastPaymentDate: string | null;
+};
+
+export type PendingFeeQueueItem = {
+  member: SerializedRecord;
+  feeType: "Admission" | "Monthly" | "Admission + Monthly";
+  pendingMonths: number;
+  admissionDue: number;
+  monthlyDue: number;
+  outstandingAmount: number;
+  oldestPendingMonth: {
+    month: number;
+    year: number;
+  } | null;
+};
+
+export type PendingFeesSummaryData = {
+  pendingMembersCount: number;
+  totalOutstandingAmount: number;
+  items: PendingFeeQueueItem[];
 };
 
 export type RevenueData = {
@@ -97,6 +130,18 @@ function isValidYear(year: unknown): year is number {
   );
 }
 
+function isValidAmount(amount: unknown): amount is number {
+  return typeof amount === "number" && Number.isFinite(amount) && amount >= 0;
+}
+
+function normalizeNumber(value: unknown) {
+  if (typeof value === "string" && value.trim() !== "") {
+    return Number(value);
+  }
+
+  return value;
+}
+
 function serialize<T>(value: unknown): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -112,6 +157,35 @@ function isDuplicateKeyError(error: unknown) {
 
 function monthIndex(month: number, year: number) {
   return year * 12 + month - 1;
+}
+
+function getPaidForMonth(payment: {
+  paymentForMonth?: number;
+  paymentMonth?: number;
+}) {
+  return payment.paymentForMonth ?? payment.paymentMonth;
+}
+
+function getPaidForYear(payment: {
+  paymentForYear?: number;
+  paymentYear?: number;
+}) {
+  return payment.paymentForYear ?? payment.paymentYear;
+}
+
+function getMonthlyDuplicateQuery(
+  memberId: mongoose.Types.ObjectId | string,
+  month: number,
+  year: number
+) {
+  return {
+    memberId,
+    paymentType: "Monthly",
+    $or: [
+      { paymentForMonth: month, paymentForYear: year },
+      { paymentMonth: month, paymentYear: year },
+    ],
+  };
 }
 
 function calculatePendingMonths(
@@ -144,6 +218,36 @@ function calculatePendingMonths(
   return pendingMonths;
 }
 
+function getOldestPendingMonth(
+  joinDate: Date | string,
+  paidMonths: Set<string>,
+  targetMonth: number,
+  targetYear: number
+) {
+  const joinedAt = new Date(joinDate);
+  const startIndex = monthIndex(joinedAt.getMonth() + 1, joinedAt.getFullYear());
+  const targetIndex = monthIndex(targetMonth, targetYear);
+
+  for (let index = startIndex; index <= targetIndex; index += 1) {
+    const year = Math.floor(index / 12);
+    const month = (index % 12) + 1;
+
+    if (!paidMonths.has(`${year}-${month}`)) {
+      return { month, year };
+    }
+  }
+
+  return null;
+}
+
+function getFeeType(admissionDue: number, pendingMonths: number) {
+  if (admissionDue > 0 && pendingMonths > 0) {
+    return "Admission + Monthly" as const;
+  }
+
+  return admissionDue > 0 ? ("Admission" as const) : ("Monthly" as const);
+}
+
 export async function recordPayment(
   data: RecordPaymentInput
 ): Promise<ActionResponse<PaymentData>> {
@@ -151,33 +255,25 @@ export async function recordPayment(
     await connectDB();
 
     if (!isValidObjectId(data.memberId)) {
-      return {
-        success: false,
-        message: "Invalid member ID.",
-      };
+      return { success: false, message: "Invalid member ID." };
     }
 
     if (!isPaymentType(data.paymentType)) {
-      return {
-        success: false,
-        message: "Invalid payment type.",
-      };
+      return { success: false, message: "Invalid payment type." };
     }
 
     if (!isPaymentMode(data.paymentMode)) {
-      return {
-        success: false,
-        message: "Payment mode must be Cash or UPI.",
-      };
+      return { success: false, message: "Payment mode must be Cash or UPI." };
+    }
+
+    if (data.amount !== undefined && !isValidAmount(data.amount)) {
+      return { success: false, message: "Amount must be zero or greater." };
     }
 
     const member = await Member.findById(data.memberId);
 
     if (!member) {
-      return {
-        success: false,
-        message: "Member not found.",
-      };
+      return { success: false, message: "Member not found." };
     }
 
     if (data.paymentType === "Admission") {
@@ -191,7 +287,8 @@ export async function recordPayment(
       const payment = await Payment.create({
         memberId: member._id,
         paymentType: "Admission",
-        amount: 1200,
+        amount: data.amount ?? member.admissionFee ?? 1200,
+        paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
         paymentMode: data.paymentMode,
         remarks: data.remarks ?? "",
       });
@@ -200,7 +297,7 @@ export async function recordPayment(
       await member.save();
 
       const populatedPayment = await Payment.findById(payment._id)
-        .populate("memberId", "name")
+        .populate("memberId", "name mobileNumber category")
         .lean();
 
       return {
@@ -210,26 +307,24 @@ export async function recordPayment(
       };
     }
 
-    if (!isValidMonth(data.paymentMonth)) {
-      return {
-        success: false,
-        message: "Invalid payment month.",
-      };
+    const paymentForMonth = normalizeNumber(data.paymentForMonth);
+    const paymentForYear = normalizeNumber(data.paymentForYear);
+
+    if (!isValidMonth(paymentForMonth)) {
+      return { success: false, message: "Invalid payment for month." };
     }
 
-    if (!isValidYear(data.paymentYear)) {
-      return {
-        success: false,
-        message: "Invalid payment year.",
-      };
+    if (!isValidYear(paymentForYear)) {
+      return { success: false, message: "Invalid payment for year." };
     }
 
-    const existingPayment = await Payment.findOne({
-      memberId: member._id,
-      paymentType: "Monthly",
-      paymentMonth: data.paymentMonth,
-      paymentYear: data.paymentYear,
-    }).lean();
+    const existingPayment = await Payment.findOne(
+      getMonthlyDuplicateQuery(
+        member._id,
+        paymentForMonth,
+        paymentForYear
+      )
+    ).lean();
 
     if (existingPayment) {
       return {
@@ -241,15 +336,18 @@ export async function recordPayment(
     const payment = await Payment.create({
       memberId: member._id,
       paymentType: "Monthly",
-      amount: member.monthlyFee,
-      paymentMonth: data.paymentMonth,
-      paymentYear: data.paymentYear,
+      amount: data.amount ?? member.monthlyFee,
+      paymentForMonth,
+      paymentForYear,
+      paymentMonth: paymentForMonth,
+      paymentYear: paymentForYear,
+      paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
       paymentMode: data.paymentMode,
       remarks: data.remarks ?? "",
     });
 
     const populatedPayment = await Payment.findById(payment._id)
-      .populate("memberId", "name")
+      .populate("memberId", "name mobileNumber category")
       .lean();
 
     return {
@@ -259,16 +357,138 @@ export async function recordPayment(
     };
   } catch (error) {
     if (isDuplicateKeyError(error)) {
-      return {
-        success: false,
-        message: "Payment already exists.",
-      };
+      return { success: false, message: "Payment already exists." };
     }
 
     return {
       success: false,
       message:
         error instanceof Error ? error.message : "Failed to record payment.",
+    };
+  }
+}
+
+export async function updatePayment(
+  id: string,
+  data: UpdatePaymentInput
+): Promise<ActionResponse<PaymentData>> {
+  try {
+    await connectDB();
+
+    if (!isValidObjectId(id)) {
+      return { success: false, message: "Invalid payment ID." };
+    }
+
+    const payment = await Payment.findById(id);
+
+    if (!payment) {
+      return { success: false, message: "Payment not found." };
+    }
+
+    if (data.paymentMode !== undefined && !isPaymentMode(data.paymentMode)) {
+      return { success: false, message: "Payment mode must be Cash or UPI." };
+    }
+
+    if (data.amount !== undefined && !isValidAmount(data.amount)) {
+      return { success: false, message: "Amount must be zero or greater." };
+    }
+
+    if (payment.paymentType === "Monthly") {
+      const paymentForMonth = normalizeNumber(data.paymentForMonth);
+      const paymentForYear = normalizeNumber(data.paymentForYear);
+
+      if (!isValidMonth(paymentForMonth)) {
+        return { success: false, message: "Invalid payment for month." };
+      }
+
+      if (!isValidYear(paymentForYear)) {
+        return { success: false, message: "Invalid payment for year." };
+      }
+
+      const duplicate = await Payment.findOne({
+        ...getMonthlyDuplicateQuery(
+          payment.memberId,
+          paymentForMonth,
+          paymentForYear
+        ),
+        _id: { $ne: payment._id },
+      }).lean();
+
+      if (duplicate) {
+        return {
+          success: false,
+          message: "Monthly payment already exists for this member and month.",
+        };
+      }
+
+      payment.paymentForMonth = paymentForMonth;
+      payment.paymentForYear = paymentForYear;
+      payment.paymentMonth = paymentForMonth;
+      payment.paymentYear = paymentForYear;
+    }
+
+    if (data.amount !== undefined) payment.amount = data.amount;
+    if (data.paymentMode !== undefined) payment.paymentMode = data.paymentMode;
+    if (data.paymentDate !== undefined) {
+      payment.paymentDate = new Date(data.paymentDate);
+    }
+    if (data.remarks !== undefined) payment.remarks = data.remarks;
+
+    await payment.save();
+
+    const populatedPayment = await Payment.findById(payment._id)
+      .populate("memberId", "name mobileNumber category")
+      .lean();
+
+    return {
+      success: true,
+      message: "Payment updated successfully.",
+      data: serialize<PaymentData>(populatedPayment),
+    };
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return { success: false, message: "Payment already exists." };
+    }
+
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to update payment.",
+    };
+  }
+}
+
+export async function deletePayment(id: string): Promise<ActionResponse> {
+  try {
+    await connectDB();
+
+    if (!isValidObjectId(id)) {
+      return { success: false, message: "Invalid payment ID." };
+    }
+
+    const payment = await Payment.findById(id);
+
+    if (!payment) {
+      return { success: false, message: "Payment not found." };
+    }
+
+    if (payment.paymentType === "Admission") {
+      await Member.findByIdAndUpdate(payment.memberId, {
+        admissionFeePaid: false,
+      });
+    }
+
+    await payment.deleteOne();
+
+    return {
+      success: true,
+      message: "Payment deleted successfully.",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to delete payment.",
     };
   }
 }
@@ -281,12 +501,17 @@ export async function getPayments(
 
     const query: Record<string, unknown> = {};
 
+    if (filters.memberId) {
+      if (!isValidObjectId(filters.memberId)) {
+        return { success: false, message: "Invalid member ID." };
+      }
+
+      query.memberId = filters.memberId;
+    }
+
     if (filters.paymentType) {
       if (!isPaymentType(filters.paymentType)) {
-        return {
-          success: false,
-          message: "Invalid payment type.",
-        };
+        return { success: false, message: "Invalid payment type." };
       }
 
       query.paymentType = filters.paymentType;
@@ -294,35 +519,49 @@ export async function getPayments(
 
     if (filters.paymentMode) {
       if (!isPaymentMode(filters.paymentMode)) {
-        return {
-          success: false,
-          message: "Invalid payment mode.",
-        };
+        return { success: false, message: "Invalid payment mode." };
       }
 
       query.paymentMode = filters.paymentMode;
     }
 
-    if (filters.month !== undefined) {
-      if (!isValidMonth(filters.month)) {
-        return {
-          success: false,
-          message: "Invalid payment month.",
-        };
-      }
-
-      query.paymentMonth = filters.month;
+    if (filters.month !== undefined && !isValidMonth(filters.month)) {
+      return { success: false, message: "Invalid payment month." };
     }
 
-    if (filters.year !== undefined) {
-      if (!isValidYear(filters.year)) {
-        return {
-          success: false,
-          message: "Invalid payment year.",
-        };
+    if (filters.year !== undefined && !isValidYear(filters.year)) {
+      return { success: false, message: "Invalid payment year." };
+    }
+
+    if (filters.month !== undefined && filters.year !== undefined) {
+      query.$or = [
+        {
+          paymentForMonth: filters.month,
+          paymentForYear: filters.year,
+        },
+        {
+          paymentMonth: filters.month,
+          paymentYear: filters.year,
+        },
+      ];
+    } else if (filters.month !== undefined) {
+      if (!isValidMonth(filters.month)) {
+        return { success: false, message: "Invalid payment month." };
       }
 
-      query.paymentYear = filters.year;
+      query.$or = [
+        { paymentForMonth: filters.month },
+        { paymentMonth: filters.month },
+      ];
+    } else if (filters.year !== undefined) {
+      if (!isValidYear(filters.year)) {
+        return { success: false, message: "Invalid payment year." };
+      }
+
+      query.$or = [
+        { paymentForYear: filters.year },
+        { paymentYear: filters.year },
+      ];
     }
 
     if (filters.memberName?.trim()) {
@@ -336,7 +575,7 @@ export async function getPayments(
     }
 
     const payments = await Payment.find(query)
-      .populate("memberId", "name")
+      .populate("memberId", "name mobileNumber category")
       .sort({ paymentDate: -1, createdAt: -1 })
       .lean();
 
@@ -361,14 +600,11 @@ export async function getMemberPayments(
     await connectDB();
 
     if (!isValidObjectId(memberId)) {
-      return {
-        success: false,
-        message: "Invalid member ID.",
-      };
+      return { success: false, message: "Invalid member ID." };
     }
 
     const payments = await Payment.find({ memberId })
-      .populate("memberId", "name")
+      .populate("memberId", "name mobileNumber category")
       .sort({ paymentDate: -1, createdAt: -1 })
       .lean();
 
@@ -396,23 +632,17 @@ export async function getPendingPayments(
     await connectDB();
 
     if (!isValidMonth(month)) {
-      return {
-        success: false,
-        message: "Invalid payment month.",
-      };
+      return { success: false, message: "Invalid payment month." };
     }
 
     if (!isValidYear(year)) {
-      return {
-        success: false,
-        message: "Invalid payment year.",
-      };
+      return { success: false, message: "Invalid payment year." };
     }
 
     const activeMembers = await Member.find({ isActive: true }).lean();
     const monthlyPayments = await Payment.find({
       paymentType: "Monthly",
-      paymentYear: { $lte: year },
+      $or: [{ paymentForYear: { $lte: year } }, { paymentYear: { $lte: year } }],
     })
       .sort({ paymentDate: -1, createdAt: -1 })
       .lean();
@@ -421,8 +651,8 @@ export async function getPendingPayments(
       monthlyPayments
         .filter(
           (payment) =>
-            String(payment.paymentYear) === String(year) &&
-            String(payment.paymentMonth) === String(month)
+            getPaidForYear(payment) === year &&
+            getPaidForMonth(payment) === month
         )
         .map((payment) => String(payment.memberId))
     );
@@ -443,16 +673,21 @@ export async function getPendingPayments(
         const paidMonths = new Set(
           memberPayments
             .filter((payment) => {
-              if (!payment.paymentMonth || !payment.paymentYear) {
+              const paidMonth = getPaidForMonth(payment);
+              const paidYear = getPaidForYear(payment);
+
+              if (!paidMonth || !paidYear) {
                 return false;
               }
 
-              return (
-                monthIndex(payment.paymentMonth, payment.paymentYear) <=
-                monthIndex(month, year)
-              );
+              return monthIndex(paidMonth, paidYear) <= monthIndex(month, year);
             })
-            .map((payment) => `${payment.paymentYear}-${payment.paymentMonth}`)
+            .map((payment) => {
+              const paidMonth = getPaidForMonth(payment);
+              const paidYear = getPaidForYear(payment);
+
+              return `${paidYear}-${paidMonth}`;
+            })
         );
         const pendingMonths = calculatePendingMonths(
           member.joinDate,
@@ -464,10 +699,7 @@ export async function getPendingPayments(
 
         return {
           member: serialize<SerializedRecord>(member),
-          pendingMonth: {
-            month,
-            year,
-          },
+          pendingMonth: { month, year },
           outstandingAmount: member.monthlyFee * pendingMonths,
           pendingMonths,
           lastPaymentDate: lastPayment?.paymentDate
@@ -492,6 +724,105 @@ export async function getPendingPayments(
   }
 }
 
+export async function getPendingFeesSummary(
+  month = new Date().getMonth() + 1,
+  year = new Date().getFullYear()
+): Promise<ActionResponse<PendingFeesSummaryData>> {
+  try {
+    await connectDB();
+
+    if (!isValidMonth(month)) {
+      return { success: false, message: "Invalid payment month." };
+    }
+
+    if (!isValidYear(year)) {
+      return { success: false, message: "Invalid payment year." };
+    }
+
+    const [members, monthlyPayments] = await Promise.all([
+      Member.find({ isActive: true }).lean(),
+      Payment.find({
+        paymentType: "Monthly",
+        $or: [{ paymentForYear: { $lte: year } }, { paymentYear: { $lte: year } }],
+      }).lean(),
+    ]);
+    const paymentsByMember = new Map<string, typeof monthlyPayments>();
+
+    for (const payment of monthlyPayments) {
+      const memberKey = String(payment.memberId);
+      const memberPayments = paymentsByMember.get(memberKey) ?? [];
+      memberPayments.push(payment);
+      paymentsByMember.set(memberKey, memberPayments);
+    }
+
+    const items = members
+      .map((member) => {
+        const memberPayments = paymentsByMember.get(String(member._id)) ?? [];
+        const paidMonths = new Set(
+          memberPayments
+            .map((payment) => {
+              const paidMonth = getPaidForMonth(payment);
+              const paidYear = getPaidForYear(payment);
+
+              return paidMonth && paidYear ? `${paidYear}-${paidMonth}` : "";
+            })
+            .filter(Boolean)
+        );
+        const pendingMonths = calculatePendingMonths(
+          member.joinDate,
+          paidMonths,
+          month,
+          year
+        );
+        const oldestPendingMonth = getOldestPendingMonth(
+          member.joinDate,
+          paidMonths,
+          month,
+          year
+        );
+        const admissionDue = member.admissionFeePaid ? 0 : member.admissionFee;
+        const monthlyDue = pendingMonths * member.monthlyFee;
+        const outstandingAmount = admissionDue + monthlyDue;
+
+        if (outstandingAmount <= 0) {
+          return null;
+        }
+
+        return {
+          member: serialize<SerializedRecord>(member),
+          feeType: getFeeType(admissionDue, pendingMonths),
+          pendingMonths,
+          admissionDue,
+          monthlyDue,
+          outstandingAmount,
+          oldestPendingMonth,
+        };
+      })
+      .filter((item): item is PendingFeeQueueItem => Boolean(item))
+      .sort((a, b) => b.outstandingAmount - a.outstandingAmount);
+    const totalOutstandingAmount = items.reduce(
+      (total, item) => total + item.outstandingAmount,
+      0
+    );
+
+    return {
+      success: true,
+      message: "Pending fees fetched successfully.",
+      data: {
+        pendingMembersCount: items.length,
+        totalOutstandingAmount,
+        items,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to fetch pending fees.",
+    };
+  }
+}
+
 export async function getRevenue(
   month: number,
   year: number
@@ -500,17 +831,11 @@ export async function getRevenue(
     await connectDB();
 
     if (!isValidMonth(month)) {
-      return {
-        success: false,
-        message: "Invalid payment month.",
-      };
+      return { success: false, message: "Invalid payment month." };
     }
 
     if (!isValidYear(year)) {
-      return {
-        success: false,
-        message: "Invalid payment year.",
-      };
+      return { success: false, message: "Invalid payment year." };
     }
 
     const activeMembers = await Member.find({ isActive: true })
@@ -518,8 +843,10 @@ export async function getRevenue(
       .lean();
     const payments = await Payment.find({
       paymentType: "Monthly",
-      paymentMonth: month,
-      paymentYear: year,
+      $or: [
+        { paymentForMonth: month, paymentForYear: year },
+        { paymentMonth: month, paymentYear: year },
+      ],
     }).lean();
 
     const activeMemberIds = new Set(

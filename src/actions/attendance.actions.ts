@@ -31,6 +31,10 @@ export type MarkAttendanceInput = {
   timeIn?: Date | string;
 };
 
+export type UpdateAttendanceTimeOutInput = {
+  timeOut: Date | string;
+};
+
 export type GetAttendanceFilters = {
   name?: string;
   date?: Date | string;
@@ -183,6 +187,97 @@ export async function checkoutAttendance(
         error instanceof Error
           ? error.message
           : "Failed to checkout attendance.",
+    };
+  }
+}
+
+export async function updateAttendanceTimeOut(
+  id: string,
+  data: UpdateAttendanceTimeOutInput
+): Promise<ActionResponse<AttendanceData>> {
+  try {
+    await connectDB();
+
+    if (!isValidObjectId(id)) {
+      return {
+        success: false,
+        message: "Invalid attendance ID.",
+      };
+    }
+
+    const timeOut = new Date(data.timeOut);
+
+    if (Number.isNaN(timeOut.getTime())) {
+      return {
+        success: false,
+        message: "Invalid checkout time.",
+      };
+    }
+
+    const attendance = await Attendance.findByIdAndUpdate(
+      id,
+      { timeOut },
+      { new: true, runValidators: true }
+    )
+      .populate("memberId", "name mobileNumber")
+      .lean();
+
+    if (!attendance) {
+      return {
+        success: false,
+        message: "Attendance record not found.",
+      };
+    }
+
+    return {
+      success: true,
+      message: "Attendance checkout time updated successfully.",
+      data: serialize<AttendanceData>(attendance),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to update checkout time.",
+    };
+  }
+}
+
+export async function deleteAttendance(
+  id: string
+): Promise<ActionResponse> {
+  try {
+    await connectDB();
+
+    if (!isValidObjectId(id)) {
+      return {
+        success: false,
+        message: "Invalid attendance ID.",
+      };
+    }
+
+    const attendance = await Attendance.findByIdAndDelete(id).lean();
+
+    if (!attendance) {
+      return {
+        success: false,
+        message: "Attendance record not found.",
+      };
+    }
+
+    return {
+      success: true,
+      message: "Attendance deleted successfully.",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to delete attendance.",
     };
   }
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Raleway } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -27,7 +28,10 @@ export default function RootLayout({
       lang="en"
       className={`${manrope.variable} ${raleway.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Toaster richColors position="top-right" />
+      </body>
     </html>
   );
 }
