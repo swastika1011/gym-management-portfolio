@@ -39,6 +39,8 @@ export type UpdatePaymentInput = {
 export type GetPaymentsFilters = {
   month?: number;
   year?: number;
+  madeMonth?: number;
+  madeYear?: number;
   paymentType?: PaymentType;
   paymentMode?: PaymentMode;
   memberName?: string;
@@ -92,12 +94,21 @@ export type PendingFeesSummaryData = {
 };
 
 export type RevenueData = {
-  collectedRevenue: number;
-  expectedRevenue: number;
-  pendingRevenue: number;
-  activeMembers: number;
-  paidMembers: number;
-  pendingMembers: number;
+  monthlyFees: {
+    expectedRevenue: number;
+    collectedRevenue: number;
+    outstandingRevenue: number;
+  };
+  admissionFees: {
+    expectedRevenue: number;
+    collectedRevenue: number;
+    outstandingRevenue: number;
+  };
+  totals: {
+    expectedRevenue: number;
+    collectedRevenue: number;
+    outstandingRevenue: number;
+  };
 };
 
 function isValidObjectId(id: string) {
@@ -186,6 +197,13 @@ function getMonthlyDuplicateQuery(
       { paymentMonth: month, paymentYear: year },
     ],
   };
+}
+
+function getMonthRange(month: number, year: number) {
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 1);
+
+  return { start, end };
 }
 
 function calculatePendingMonths(
@@ -533,6 +551,14 @@ export async function getPayments(
       return { success: false, message: "Invalid payment year." };
     }
 
+    if (filters.madeMonth !== undefined && !isValidMonth(filters.madeMonth)) {
+      return { success: false, message: "Invalid payment made month." };
+    }
+
+    if (filters.madeYear !== undefined && !isValidYear(filters.madeYear)) {
+      return { success: false, message: "Invalid payment made year." };
+    }
+
     if (filters.month !== undefined && filters.year !== undefined) {
       query.$or = [
         {
@@ -562,6 +588,25 @@ export async function getPayments(
         { paymentForYear: filters.year },
         { paymentYear: filters.year },
       ];
+    }
+
+    if (filters.madeMonth !== undefined || filters.madeYear !== undefined) {
+      const dateExpressions = [];
+
+      if (filters.madeMonth !== undefined) {
+        dateExpressions.push({
+          $eq: [{ $month: "$paymentDate" }, filters.madeMonth],
+        });
+      }
+
+      if (filters.madeYear !== undefined) {
+        dateExpressions.push({
+          $eq: [{ $year: "$paymentDate" }, filters.madeYear],
+        });
+      }
+
+      query.$expr =
+        dateExpressions.length === 1 ? dateExpressions[0] : { $and: dateExpressions };
     }
 
     if (filters.memberName?.trim()) {
@@ -838,32 +883,71 @@ export async function getRevenue(
       return { success: false, message: "Invalid payment year." };
     }
 
-    const activeMembers = await Member.find({ isActive: true })
-      .select("_id monthlyFee")
-      .lean();
-    const payments = await Payment.find({
-      paymentType: "Monthly",
-      $or: [
-        { paymentForMonth: month, paymentForYear: year },
-        { paymentMonth: month, paymentYear: year },
-      ],
-    }).lean();
+    const { start: monthStart, end: nextMonthStart } = getMonthRange(month, year);
+    const [members, monthlyPayments, admissionPayments, priorAdmissionPayments] =
+      await Promise.all([
+        Member.find({
+          isActive: true,
+          joinDate: { $lt: nextMonthStart },
+        })
+          .select("_id monthlyFee admissionFee joinDate")
+          .lean(),
+        Payment.find({
+          paymentType: "Monthly",
+          $or: [
+            { paymentForMonth: month, paymentForYear: year },
+            { paymentMonth: month, paymentYear: year },
+          ],
+        }).lean(),
+        Payment.find({
+          paymentType: "Admission",
+          paymentDate: { $gte: monthStart, $lt: nextMonthStart },
+        }).lean(),
+        Payment.find({
+          paymentType: "Admission",
+          paymentDate: { $lt: monthStart },
+        })
+          .select("memberId")
+          .lean(),
+      ]);
 
     const activeMemberIds = new Set(
-      activeMembers.map((member) => String(member._id))
+      members.map((member) => String(member._id))
     );
-    const activeMemberPayments = payments.filter((payment) =>
+    const activeMemberMonthlyPayments = monthlyPayments.filter((payment) =>
       activeMemberIds.has(String(payment.memberId))
     );
-    const paidMemberIds = new Set(
-      activeMemberPayments.map((payment) => String(payment.memberId))
+    const activeMemberAdmissionPayments = admissionPayments.filter((payment) =>
+      activeMemberIds.has(String(payment.memberId))
     );
-    const expectedRevenue = activeMembers.reduce(
+    const membersWithAdmissionPaidBeforeMonth = new Set(
+      priorAdmissionPayments.map((payment) => String(payment.memberId))
+    );
+    const admissionPendingMembers = members.filter(
+      (member) => !membersWithAdmissionPaidBeforeMonth.has(String(member._id))
+    );
+    const expectedMonthlyRevenue = members.reduce(
       (total, member) => total + member.monthlyFee,
       0
     );
-    const collectedRevenue = activeMemberPayments.reduce(
+    const collectedMonthlyRevenue = activeMemberMonthlyPayments.reduce(
       (total, payment) => total + payment.amount,
+      0
+    );
+    const expectedAdmissionRevenue = admissionPendingMembers.reduce(
+      (total, member) => total + member.admissionFee,
+      0
+    );
+    const collectedAdmissionRevenue = activeMemberAdmissionPayments.reduce(
+      (total, payment) => total + payment.amount,
+      0
+    );
+    const monthlyOutstandingRevenue = Math.max(
+      expectedMonthlyRevenue - collectedMonthlyRevenue,
+      0
+    );
+    const admissionOutstandingRevenue = Math.max(
+      expectedAdmissionRevenue - collectedAdmissionRevenue,
       0
     );
 
@@ -871,12 +955,22 @@ export async function getRevenue(
       success: true,
       message: "Revenue fetched successfully.",
       data: {
-        collectedRevenue,
-        expectedRevenue,
-        pendingRevenue: expectedRevenue - collectedRevenue,
-        activeMembers: activeMembers.length,
-        paidMembers: paidMemberIds.size,
-        pendingMembers: activeMembers.length - paidMemberIds.size,
+        monthlyFees: {
+          expectedRevenue: expectedMonthlyRevenue,
+          collectedRevenue: collectedMonthlyRevenue,
+          outstandingRevenue: monthlyOutstandingRevenue,
+        },
+        admissionFees: {
+          expectedRevenue: expectedAdmissionRevenue,
+          collectedRevenue: collectedAdmissionRevenue,
+          outstandingRevenue: admissionOutstandingRevenue,
+        },
+        totals: {
+          expectedRevenue: expectedMonthlyRevenue + expectedAdmissionRevenue,
+          collectedRevenue: collectedMonthlyRevenue + collectedAdmissionRevenue,
+          outstandingRevenue:
+            monthlyOutstandingRevenue + admissionOutstandingRevenue,
+        },
       },
     };
   } catch (error) {

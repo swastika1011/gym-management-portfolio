@@ -38,6 +38,10 @@ type PendingFeeRow = PendingFeeQueueItem & {
   category: "Male" | "Female" | "Student";
 };
 
+const FEE_TYPE_FILTER = "Fee Type";
+const CATEGORY_FILTER = "Category";
+const PENDING_MONTHS_FILTER = "Pending Months";
+
 export interface PendingFeesWorkflowProps {
   summary: PendingFeesSummaryData;
   members: MemberData[];
@@ -67,9 +71,9 @@ export function PendingFeesWorkflow({
   yearOptions,
 }: PendingFeesWorkflowProps) {
   const router = useRouter();
-  const [feeType, setFeeType] = useState("All");
-  const [category, setCategory] = useState("All");
-  const [pendingMonths, setPendingMonths] = useState("All");
+  const [feeType, setFeeType] = useState(FEE_TYPE_FILTER);
+  const [category, setCategory] = useState(CATEGORY_FILTER);
+  const [pendingMonths, setPendingMonths] = useState(PENDING_MONTHS_FILTER);
   const [dialogValues, setDialogValues] =
     useState<RecordPaymentInitialValues | null>(null);
   const rows = useMemo<PendingFeeRow[]>(
@@ -85,13 +89,13 @@ export function PendingFeesWorkflow({
   );
   const filteredRows = rows.filter((row) => {
     const feeTypeMatch =
-      feeType === "All" ||
+      feeType === FEE_TYPE_FILTER ||
       row.feeType === feeType ||
       (feeType === "Admission" && row.feeType === "Admission + Monthly") ||
       (feeType === "Monthly" && row.feeType === "Admission + Monthly");
-    const categoryMatch = category === "All" || row.category === category;
+    const categoryMatch = category === CATEGORY_FILTER || row.category === category;
     const monthsMatch =
-      pendingMonths === "All" ||
+      pendingMonths === PENDING_MONTHS_FILTER ||
       (pendingMonths === "1" && row.pendingMonths === 1) ||
       (pendingMonths === "2" && row.pendingMonths === 2) ||
       (pendingMonths === "3+" && row.pendingMonths >= 3);
@@ -190,19 +194,19 @@ export function PendingFeesWorkflow({
             value={feeType}
             onChange={setFeeType}
             label="Fee Type"
-            options={["All", "Monthly", "Admission"]}
+            options={[FEE_TYPE_FILTER, "Monthly", "Admission"]}
           />
           <SelectFilter
             value={category}
             onChange={setCategory}
             label="Category"
-            options={["All", "Male", "Female", "Student"]}
+            options={[CATEGORY_FILTER, "Male", "Female", "Student"]}
           />
           <SelectFilter
             value={pendingMonths}
             onChange={setPendingMonths}
             label="Pending Months"
-            options={["All", "1", "2", "3+"]}
+            options={[PENDING_MONTHS_FILTER, "1", "2", "3+"]}
             labels={{ "1": "1 Month", "2": "2 Months", "3+": "3+ Months" }}
           />
         </div>

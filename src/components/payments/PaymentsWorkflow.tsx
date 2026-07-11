@@ -60,10 +60,12 @@ type PaymentRow = PaymentData & {
 
 export type PaymentFilters = {
   search: string;
-  paymentType: "All" | PaymentType;
-  paymentMode: "All" | PaymentMode;
+  paymentType: string;
+  paymentMode: string;
   year: string;
   month: string;
+  madeMonth: string;
+  madeYear: string;
   member: string;
 };
 
@@ -91,6 +93,20 @@ const months = [
 ];
 
 const DEFAULT_PAYMENT_TYPE: PaymentType = "Monthly";
+const PAYMENT_TYPE_FILTER = "Payment Type";
+const PAYMENT_MODE_FILTER = "Payment Mode";
+const PAID_FOR_YEAR_FILTER = "Paid For Year";
+const PAID_FOR_MONTH_FILTER = "Paid For Month";
+const PAID_IN_MONTH_FILTER = "Paid In Month";
+const PAID_IN_YEAR_FILTER = "Paid In Year";
+const filterPlaceholders = new Set([
+  PAYMENT_TYPE_FILTER,
+  PAYMENT_MODE_FILTER,
+  PAID_FOR_YEAR_FILTER,
+  PAID_FOR_MONTH_FILTER,
+  PAID_IN_MONTH_FILTER,
+  PAID_IN_YEAR_FILTER,
+]);
 
 function getMember(value: PaymentData["memberId"]): MemberSummary {
   return typeof value === "object" && value !== null ? value : {};
@@ -238,6 +254,7 @@ export function PaymentsWorkflow({
     [payments]
   );
   const selectedMember = members.find((member) => member._id === selectedMemberId);
+ 
   const selectedPaymentKeys = selectedMember
     ? getMemberPaymentKeys(allPayments, selectedMember._id)
     : new Set<string>();
@@ -255,10 +272,11 @@ export function PaymentsWorkflow({
         targetYear: currentYear,
       })
     : 0;
-  const outstandingAmount = selectedMember
-    ? pendingMonths * selectedMember.monthlyFee
-    : 0;
 
+const outstandingAmount = selectedMember
+  ? (selectedMember.admissionFeePaid ? 0 : selectedMember.admissionFee) +
+    pendingMonths * selectedMember.monthlyFee
+  : 0;
   const filteredMembers = members.filter((member) => {
     const query = memberSearch.trim().toLowerCase();
 
@@ -383,11 +401,14 @@ export function PaymentsWorkflow({
       paymentMode: "mode",
       year: "year",
       month: "month",
+      madeMonth: "madeMonth",
+      madeYear: "madeYear",
       member: "member",
     };
     const paramKey = paramKeyMap[key];
     const shouldDelete =
-      value === "All" || (key === "search" && value.trim() === "");
+      filterPlaceholders.has(value) ||
+      (key === "search" && value.trim() === "");
 
     if (shouldDelete) {
       params.delete(paramKey);
@@ -558,7 +579,7 @@ export function PaymentsWorkflow({
       />
 
       <SectionCard title="Payment Records">
-        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1.5fr)_repeat(4,minmax(130px,1fr))_auto]">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1.5fr)_repeat(6,minmax(130px,1fr))_auto]">
           <SearchInput
             value={search}
             onChange={setSearch}
@@ -569,7 +590,7 @@ export function PaymentsWorkflow({
             onChange={(value) => updateQuery("paymentType", value)}
             ariaLabel="Filter by payment type"
           >
-            {["All", "Admission", "Monthly"].map((item) => (
+            {[PAYMENT_TYPE_FILTER, "Admission", "Monthly"].map((item) => (
               <SelectItem key={item} value={item} className="rounded-lg text-[#3F0000]">
                 {item}
               </SelectItem>
@@ -580,7 +601,7 @@ export function PaymentsWorkflow({
             onChange={(value) => updateQuery("paymentMode", value)}
             ariaLabel="Filter by payment mode"
           >
-            {["All", "Cash", "UPI"].map((item) => (
+            {[PAYMENT_MODE_FILTER, "Cash", "UPI"].map((item) => (
               <SelectItem key={item} value={item} className="rounded-lg text-[#3F0000]">
                 {item}
               </SelectItem>
@@ -591,8 +612,8 @@ export function PaymentsWorkflow({
             onChange={(value) => updateQuery("year", value)}
             ariaLabel="Filter by year"
           >
-            <SelectItem value="Paid For Years" className="rounded-lg text-[#3F0000]">
-              Paid For Years
+            <SelectItem value={PAID_FOR_YEAR_FILTER} className="rounded-lg text-[#3F0000]">
+              {PAID_FOR_YEAR_FILTER}
             </SelectItem>
             {yearOptions.map((year) => (
               <SelectItem
@@ -609,8 +630,8 @@ export function PaymentsWorkflow({
             onChange={(value) => updateQuery("month", value)}
             ariaLabel="Filter by month"
           >
-            <SelectItem value="Paid For Month" className="rounded-lg text-[#3F0000]">
-              Paid For Months
+            <SelectItem value={PAID_FOR_MONTH_FILTER} className="rounded-lg text-[#3F0000]">
+              {PAID_FOR_MONTH_FILTER}
             </SelectItem>
             {months.map((month) => (
               <SelectItem
@@ -619,6 +640,42 @@ export function PaymentsWorkflow({
                 className="rounded-lg text-[#3F0000]"
               >
                 {month.label}
+              </SelectItem>
+            ))}
+          </SelectField>
+          <SelectField
+            value={filters.madeMonth}
+            onChange={(value) => updateQuery("madeMonth", value)}
+            ariaLabel="Filter by payment made month"
+          >
+            <SelectItem value={PAID_IN_MONTH_FILTER} className="rounded-lg text-[#3F0000]">
+              {PAID_IN_MONTH_FILTER}
+            </SelectItem>
+            {months.map((month) => (
+              <SelectItem
+                key={month.value}
+                value={month.value}
+                className="rounded-lg text-[#3F0000]"
+              >
+                {month.label}
+              </SelectItem>
+            ))}
+          </SelectField>
+          <SelectField
+            value={filters.madeYear}
+            onChange={(value) => updateQuery("madeYear", value)}
+            ariaLabel="Filter by payment made year"
+          >
+            <SelectItem value={PAID_IN_YEAR_FILTER} className="rounded-lg text-[#3F0000]">
+              {PAID_IN_YEAR_FILTER}
+            </SelectItem>
+            {yearOptions.map((year) => (
+              <SelectItem
+                key={year}
+                value={String(year)}
+                className="rounded-lg text-[#3F0000]"
+              >
+                {year}
               </SelectItem>
             ))}
           </SelectField>
@@ -1037,7 +1094,14 @@ function MemberPaymentSummary({
   pendingMonths: number;
   outstandingAmount: number;
 }) {
+     console.log({
+  admissionFee: member.admissionFee,
+  admissionFeePaid: member.admissionFeePaid,
+  pendingMonths,
+  outstandingAmount,
+});
   return (
+ 
     <div className="grid gap-3 rounded-[18px] border border-[#FFAA83] bg-[#FFEADE]/40 p-3 sm:grid-cols-2">
       <Info label="Member" value={member.name} />
       <Info label="Category" value={member.category} />

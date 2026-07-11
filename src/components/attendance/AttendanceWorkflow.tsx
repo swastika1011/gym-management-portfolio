@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import { useMemo, useState, useTransition } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarCheck, Clock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +32,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatTime } from "@/components/members/member-utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type AttendanceMember = {
   _id?: string;
@@ -45,6 +53,9 @@ type AttendanceRow = AttendanceData & {
 export interface AttendanceWorkflowProps {
   attendance: AttendanceData[];
   members: MemberData[];
+  selectedDate: string;
+  selectedYear: number;
+  years: number[];
 }
 
 function dateInputValue(value = new Date()) {
@@ -66,7 +77,13 @@ function getMember(value: AttendanceData["memberId"]): AttendanceMember {
 export function AttendanceWorkflow({
   attendance,
   members,
+  selectedDate,
+  selectedYear,
+  years,
 }: AttendanceWorkflowProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [markOpen, setMarkOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<AttendanceRow | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
@@ -147,6 +164,28 @@ export function AttendanceWorkflow({
     ],
     []
   );
+
+  function updateAttendanceFilter(key: "date" | "year", value: string | null) {
+    if (!pathname || value === null) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (key === "date") {
+      if (value) {
+        params.set("date", value);
+        params.set("year", String(new Date(`${value}T00:00:00`).getFullYear()));
+      } else {
+        params.delete("date");
+      }
+    } else {
+      params.set("year", value);
+      params.delete("date");
+    }
+
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
 
   function resetMarkForm() {
     setSelectedMemberId("");
@@ -240,14 +279,48 @@ export function AttendanceWorkflow({
         title="Attendance Records"
         description="Mark attendance, check out members, and manage daily records."
         headerAction={
-          <Button
-            type="button"
-            onClick={() => setMarkOpen(true)}
-            className="rounded-xl bg-[#9A3412] text-[14px] font-semibold text-white hover:bg-[#7C2D12]"
-          >
-            <CalendarCheck className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            Mark Attendance
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(event) =>
+                updateAttendanceFilter("date", event.target.value)
+              }
+              className="h-9 w-40 rounded-xl border-[#FFAA83] bg-white text-[14px] font-semibold text-[#3F0000]"
+              aria-label="Filter attendance by date"
+            />
+            <Select
+              value={String(selectedYear)}
+              onValueChange={(value) => updateAttendanceFilter("year", value)}
+            >
+              <SelectTrigger className="h-9 w-28 rounded-xl border-[#FFAA83] bg-white text-[14px] font-semibold text-[#3F0000]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                align="end"
+                alignItemWithTrigger={false}
+                className="!min-w-0 w-[var(--anchor-width)] p-1"
+              >
+                {years.map((year) => (
+                  <SelectItem
+                    key={year}
+                    value={String(year)}
+                    className="rounded-lg px-2 py-1 text-[#3F0000] focus:bg-transparent data-[highlighted]:bg-transparent"
+                  >
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              onClick={() => setMarkOpen(true)}
+              className="rounded-xl bg-[#9A3412] text-[14px] font-semibold text-white hover:bg-[#7C2D12]"
+            >
+              <CalendarCheck className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Mark Attendance
+            </Button>
+          </div>
         }
       >
         {rows.length === 0 ? (

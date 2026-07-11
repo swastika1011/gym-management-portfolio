@@ -51,7 +51,7 @@
 :root {
   --font-geist-sans: var(--font-raleway);
   --font-geist-mono: var(--font-manrope);
-  --background: #FFEADE;
+  --background: #FFF4EE;
   --foreground: #3f0000;
   --card: oklch(1 0 0);
   --card-foreground: #3f0000;
@@ -83,6 +83,64 @@
   --sidebar-accent-foreground: #7c2d12;
   --sidebar-border: #ffaa83;
   --sidebar-ring: #9a3412;
+}
+
+@layer utilities {
+  .landing-shell {
+    background-image:
+      radial-gradient(circle at 46% 7%, rgba(255, 255, 255, 0.97), transparent 28rem),
+      radial-gradient(circle at 8% 67%, rgba(255, 219, 202, 0.7), transparent 30rem),
+      linear-gradient(120deg, #fff4ee 0%, #fff8f5 50%, #ffe9dd 100%);
+  }
+
+  .landing-gym-gradient {
+    background: linear-gradient(100deg, #a8240d 8%, #e74a17 72%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .landing-oval {
+    border-radius: 50%;
+    background: radial-gradient(circle at 42% 36%, #ffffff 0%, #fffdfc 56%, #fff8f5 100%);
+    box-shadow: 0 28px 74px rgba(154, 52, 18, 0.09);
+  }
+
+  .landing-wave {
+    position: absolute;
+    z-index: -1;
+    bottom: -16rem;
+    left: -8%;
+    width: 76%;
+    height: 27rem;
+    border-radius: 52% 55% 0 0 / 30% 38% 0 0;
+    background: linear-gradient(120deg, rgba(255, 224, 209, 0.82), rgba(255, 241, 234, 0.45));
+    transform: rotate(-7deg);
+  }
+
+  .landing-dots {
+    position: absolute;
+    z-index: -1;
+    width: 15rem;
+    height: 15rem;
+    opacity: 0.52;
+    background-image: radial-gradient(circle, #ffb99d 2.3px, transparent 2.7px);
+    background-size: 19px 19px;
+    mask-image: radial-gradient(circle at center, black 20%, transparent 70%);
+  }
+
+  .landing-dots-top { top: -2.5rem; right: -2rem; }
+  .landing-dots-bottom { right: -1.5rem; bottom: -5rem; }
+
+  @media (max-width: 1023px) {
+    .landing-wave { bottom: -20rem; width: 115%; }
+  }
+
+  @media (max-width: 639px) {
+    .landing-dots { width: 9rem; height: 9rem; background-size: 15px 15px; }
+    .landing-dots-top { top: -2rem; right: -3.5rem; }
+    .landing-dots-bottom { display: none; }
+  }
 }
 
 .dark {

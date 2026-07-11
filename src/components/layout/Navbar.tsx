@@ -26,7 +26,7 @@ const routeTitles: Array<{ href: string; title: string }> = [
   { href: "/admin/members", title: "Members" },
   { href: "/admin/attendance", title: "Attendance" },
   { href: "/admin/payments", title: "Payments" },
-  { href: "/admin/plans", title: "Revenue" },
+  { href: "/admin/revenue", title: "Revenue" },
   { href: "/admin", title: "Dashboard" },
 ];
 

@@ -8,7 +8,9 @@ import {
   CreditCard,
   Dumbbell,
   Home,
+  LineChart,
   Users,
+  CircleAlert,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -36,7 +38,9 @@ const navItems: SidebarNavItem[] = [
   { title: "Members", href: "/admin/members", icon: Users },
   { title: "Attendance", href: "/admin/attendance", icon: CalendarCheck },
   { title: "Payments", href: "/admin/payments", icon: CreditCard },
-  { title: "Revenue", href: "/admin/plans", icon: BarChart3 },
+  { title: "Pending Fees", href: "/admin/pending-fees", icon: CircleAlert },
+  { title: "Stats", href: "/admin/stats", icon: LineChart },
+  { title: "Revenue", href: "/admin/revenue", icon: BarChart3 },
 ];
 
 const defaultUser: SidebarUser = {
@@ -73,7 +77,7 @@ export function Sidebar({
         </div>
         <div className="min-w-0">
           <p className="[font-family:var(--font-manrope),sans-serif] text-[18px] font-semibold leading-6">
-            Gym Admin
+            Mad Muscles Gym
           </p>
           <p className="[font-family:var(--font-raleway),sans-serif] text-[13px] text-[#737373]">
             Management

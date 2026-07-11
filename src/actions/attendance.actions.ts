@@ -38,6 +38,7 @@ export type UpdateAttendanceTimeOutInput = {
 export type GetAttendanceFilters = {
   name?: string;
   date?: Date | string;
+  year?: number;
 };
 
 export type TodayAttendanceData = {
@@ -59,6 +60,15 @@ function isDuplicateKeyError(error: unknown) {
     error !== null &&
     "code" in error &&
     error.code === 11000
+  );
+}
+
+function isValidYear(year: unknown): year is number {
+  return (
+    typeof year === "number" &&
+    Number.isInteger(year) &&
+    year >= 1900 &&
+    year <= 9999
   );
 }
 
@@ -293,6 +303,15 @@ export async function getAttendance(
     if (filters.date) {
       const { start, end } = getDateRange(filters.date);
       query.date = { $gte: start, $lt: end };
+    } else if (filters.year !== undefined) {
+      if (!isValidYear(filters.year)) {
+        return { success: false, message: "Invalid attendance year." };
+      }
+
+      query.date = {
+        $gte: new Date(filters.year, 0, 1),
+        $lt: new Date(filters.year + 1, 0, 1),
+      };
     }
 
     if (filters.name?.trim()) {
