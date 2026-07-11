@@ -39,7 +39,7 @@ export default function Home() {
 
           <div className="mt-8 flex w-full flex-col gap-3 sm:mx-auto sm:max-w-[21rem] lg:mx-0 lg:mt-9">
             <Button
-              render={<Link href="/admin" />}
+              render={<Link href="/sign-in" />}
               className="h-[4.1rem] w-full rounded-xl bg-gradient-to-r from-[#c2410c] to-[#ea580c] px-7 text-base font-semibold text-white shadow-[0_14px_26px_rgba(194,65,12,0.2)] transition-transform hover:-translate-y-0.5 hover:from-[#ad370a] hover:to-[#d94f0a] sm:text-lg"
             >
               <ShieldUser className="size-6 stroke-[1.8]" />

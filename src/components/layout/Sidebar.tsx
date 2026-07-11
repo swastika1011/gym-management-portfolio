@@ -1,18 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { useClerk } from "@clerk/nextjs";
 import {
   BarChart3,
   CalendarCheck,
   CreditCard,
-  Dumbbell,
   Home,
   LineChart,
   Users,
   CircleAlert,
+  ChevronUp,
+  LogOut,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export interface SidebarNavItem {
@@ -63,6 +68,8 @@ export function Sidebar({
   user = defaultUser,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { signOut } = useClerk();
+  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
     <aside
@@ -72,9 +79,15 @@ export function Sidebar({
       )}
     >
       <div className="flex h-20 shrink-0 items-center gap-3 border-b border-[#FFAA83] px-4">
-        <div className="grid size-10 place-items-center rounded-2xl bg-[#FFEADE] text-[#9A3412]">
-          <Dumbbell className="size-5" strokeWidth={1.75} aria-hidden="true" />
-        </div>
+  <div className="grid size-10 place-items-center overflow-hidden rounded-2xl bg-[#FFEADE]">
+    <Image
+      src="/logo.png"
+      alt="Gym Logo"
+      width={40}
+      height={40}
+      className="object-contain"
+    />
+  </div>
         <div className="min-w-0">
           <p className="[font-family:var(--font-manrope),sans-serif] text-[18px] font-semibold leading-6">
             Mad Muscles Gym
@@ -111,17 +124,49 @@ export function Sidebar({
       </nav>
 
       <div className="shrink-0 border-t border-[#FFAA83] p-3">
-        <div className="flex items-center gap-3 rounded-2xl bg-[#FFEADE] p-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#9A3412] [font-family:var(--font-manrope),sans-serif] text-[15px] font-bold text-white">
-            {user.initials}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate [font-family:var(--font-manrope),sans-serif] text-[15px] font-semibold text-[#3F0000]">
-              {user.name}
-            </p>
-            <p className="truncate [font-family:var(--font-raleway),sans-serif] text-[13px] text-[#737373]">
-              {user.role}
-            </p>
+        <div className="rounded-2xl bg-[#FFEADE] p-3">
+          <button
+            type="button"
+            onClick={() => setProfileOpen((isOpen) => !isOpen)}
+            aria-expanded={profileOpen}
+            className="flex w-full items-center gap-3 rounded-xl text-left outline-none transition-colors hover:bg-white/45 focus-visible:ring-2 focus-visible:ring-[#9A3412]"
+          >
+            <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#9A3412] [font-family:var(--font-manrope),sans-serif] text-[15px] font-bold text-white">
+              {user.initials}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate [font-family:var(--font-manrope),sans-serif] text-[15px] font-semibold text-[#3F0000]">
+                {user.name}
+              </p>
+            </div>
+            <ChevronUp
+              className={cn(
+                "ml-auto mr-1 size-4 shrink-0 text-[#9A3412] transition-transform duration-200",
+                profileOpen ? "rotate-0" : "rotate-180"
+              )}
+              aria-hidden="true"
+            />
+          </button>
+          <div
+            className={cn(
+              "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
+              profileOpen ? "mt-3 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+            )}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <p className="mb-2 px-2.5 [font-family:var(--font-raleway),sans-serif] text-[13px] text-[#737373]">
+                {user.role}
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => signOut({ redirectUrl: "/" })}
+                className="h-9 w-full justify-start rounded-xl px-2.5 text-[#9A3412] hover:bg-white/70 hover:text-[#7C2D12]"
+              >
+                <LogOut className="size-4" aria-hidden="true" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import mongoose from "mongoose";
 
 import { connectDB } from "@/lib/mongodb";
+import { calculateOutstandingAmount } from "@/lib/fee-calculations";
 import Member from "@/models/member";
 import Payment from "@/models/payments";
 
@@ -39,8 +40,7 @@ export type UpdatePaymentInput = {
 export type GetPaymentsFilters = {
   month?: number;
   year?: number;
-  madeMonth?: number;
-  madeYear?: number;
+  paymentDate?: string;
   paymentType?: PaymentType;
   paymentMode?: PaymentMode;
   memberName?: string;
@@ -139,6 +139,15 @@ function isValidYear(year: unknown): year is number {
     year >= 1900 &&
     year <= 9999
   );
+}
+
+function isValidPaymentDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
 }
 
 function isValidAmount(amount: unknown): amount is number {
@@ -551,12 +560,11 @@ export async function getPayments(
       return { success: false, message: "Invalid payment year." };
     }
 
-    if (filters.madeMonth !== undefined && !isValidMonth(filters.madeMonth)) {
-      return { success: false, message: "Invalid payment made month." };
-    }
-
-    if (filters.madeYear !== undefined && !isValidYear(filters.madeYear)) {
-      return { success: false, message: "Invalid payment made year." };
+    if (
+      filters.paymentDate !== undefined &&
+      !isValidPaymentDate(filters.paymentDate)
+    ) {
+      return { success: false, message: "Invalid payment date." };
     }
 
     if (filters.month !== undefined && filters.year !== undefined) {
@@ -590,23 +598,12 @@ export async function getPayments(
       ];
     }
 
-    if (filters.madeMonth !== undefined || filters.madeYear !== undefined) {
-      const dateExpressions = [];
+    if (filters.paymentDate !== undefined) {
+      const dayStart = new Date(`${filters.paymentDate}T00:00:00.000Z`);
+      const nextDayStart = new Date(dayStart);
+      nextDayStart.setUTCDate(nextDayStart.getUTCDate() + 1);
 
-      if (filters.madeMonth !== undefined) {
-        dateExpressions.push({
-          $eq: [{ $month: "$paymentDate" }, filters.madeMonth],
-        });
-      }
-
-      if (filters.madeYear !== undefined) {
-        dateExpressions.push({
-          $eq: [{ $year: "$paymentDate" }, filters.madeYear],
-        });
-      }
-
-      query.$expr =
-        dateExpressions.length === 1 ? dateExpressions[0] : { $and: dateExpressions };
+      query.paymentDate = { $gte: dayStart, $lt: nextDayStart };
     }
 
     if (filters.memberName?.trim()) {
@@ -825,9 +822,13 @@ export async function getPendingFeesSummary(
           month,
           year
         );
-        const admissionDue = member.admissionFeePaid ? 0 : member.admissionFee;
-        const monthlyDue = pendingMonths * member.monthlyFee;
-        const outstandingAmount = admissionDue + monthlyDue;
+        const { admissionDue, monthlyDue, outstandingAmount } =
+          calculateOutstandingAmount({
+            admissionFee: member.admissionFee,
+            admissionFeePaid: member.admissionFeePaid,
+            monthlyFee: member.monthlyFee,
+            pendingMonths,
+          });
 
         if (outstandingAmount <= 0) {
           return null;

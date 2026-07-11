@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Manrope, Raleway } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -29,8 +30,10 @@ export default function RootLayout({
       className={`${manrope.variable} ${raleway.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {children}
-        <Toaster richColors position="top-right" />
+        <ClerkProvider afterSignOutUrl="/">
+          {children}
+          <Toaster richColors position="top-right" />
+        </ClerkProvider>
       </body>
     </html>
   );

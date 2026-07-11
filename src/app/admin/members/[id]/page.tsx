@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CreditCard, Pencil } from "lucide-react";
 
 import { getMemberById } from "@/actions/member.actions";
+import { calculateOutstandingAmount } from "@/lib/fee-calculations";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
@@ -77,7 +78,12 @@ export default async function MemberProfilePage({
     targetMonth: currentMonth,
     targetYear: currentYear,
   });
-  const outstandingAmount = pendingMonths * member.monthlyFee;
+  const { outstandingAmount } = calculateOutstandingAmount({
+    admissionFee: member.admissionFee,
+    admissionFeePaid: member.admissionFeePaid,
+    monthlyFee: member.monthlyFee,
+    pendingMonths,
+  });
 
   return (
     <div className="space-y-4">

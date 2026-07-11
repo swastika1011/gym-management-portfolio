@@ -4,7 +4,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
-import { CreditCard, Eye, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { CalendarDays, CreditCard, Eye, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import type { MemberData } from "@/actions/member.actions";
@@ -33,6 +33,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -62,10 +68,8 @@ export type PaymentFilters = {
   search: string;
   paymentType: string;
   paymentMode: string;
-  year: string;
-  month: string;
-  madeMonth: string;
-  madeYear: string;
+  paidForDate: string;
+  paymentDate: string;
   member: string;
 };
 
@@ -95,17 +99,9 @@ const months = [
 const DEFAULT_PAYMENT_TYPE: PaymentType = "Monthly";
 const PAYMENT_TYPE_FILTER = "Payment Type";
 const PAYMENT_MODE_FILTER = "Payment Mode";
-const PAID_FOR_YEAR_FILTER = "Paid For Year";
-const PAID_FOR_MONTH_FILTER = "Paid For Month";
-const PAID_IN_MONTH_FILTER = "Paid In Month";
-const PAID_IN_YEAR_FILTER = "Paid In Year";
 const filterPlaceholders = new Set([
   PAYMENT_TYPE_FILTER,
   PAYMENT_MODE_FILTER,
-  PAID_FOR_YEAR_FILTER,
-  PAID_FOR_MONTH_FILTER,
-  PAID_IN_MONTH_FILTER,
-  PAID_IN_YEAR_FILTER,
 ]);
 
 function getMember(value: PaymentData["memberId"]): MemberSummary {
@@ -118,6 +114,38 @@ function getPaymentForMonth(payment: PaymentData) {
 
 function getPaymentForYear(payment: PaymentData) {
   return payment.paymentForYear ?? payment.paymentYear;
+}
+
+function parseDate(value: string) {
+  return value ? new Date(`${value}T00:00:00`) : undefined;
+}
+
+function dateKey(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function monthKeyFromDate(date: Date) {
+  return dateKey(date).slice(0, 7);
+}
+
+function formatCalendarDate(value: string) {
+  const date = parseDate(value);
+  return date
+    ? date.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "Select Date";
+}
+
+function formatCalendarMonth(value: string) {
+  const date = value ? parseDate(`${value}-01`) : undefined;
+  return date
+    ? date.toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+    : "Paid For";
 }
 
 function dateInputValue(value: string | Date = new Date()) {
@@ -399,16 +427,15 @@ const outstandingAmount = selectedMember
       search: "search",
       paymentType: "type",
       paymentMode: "mode",
-      year: "year",
-      month: "month",
-      madeMonth: "madeMonth",
-      madeYear: "madeYear",
+      paidForDate: "paidFor",
+      paymentDate: "paymentDate",
       member: "member",
     };
     const paramKey = paramKeyMap[key];
     const shouldDelete =
       filterPlaceholders.has(value) ||
-      (key === "search" && value.trim() === "");
+      (key === "search" || key === "paidForDate" || key === "paymentDate") &&
+        value.trim() === "";
 
     if (shouldDelete) {
       params.delete(paramKey);
@@ -579,7 +606,7 @@ const outstandingAmount = selectedMember
       />
 
       <SectionCard title="Payment Records">
-        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1.5fr)_repeat(6,minmax(130px,1fr))_auto]">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1.5fr)_repeat(5,minmax(130px,1fr))_auto]">
           <SearchInput
             value={search}
             onChange={setSearch}
@@ -607,78 +634,18 @@ const outstandingAmount = selectedMember
               </SelectItem>
             ))}
           </SelectField>
-          <SelectField
-            value={filters.year}
-            onChange={(value) => updateQuery("year", value)}
-            ariaLabel="Filter by year"
-          >
-            <SelectItem value={PAID_FOR_YEAR_FILTER} className="rounded-lg text-[#3F0000]">
-              {PAID_FOR_YEAR_FILTER}
-            </SelectItem>
-            {yearOptions.map((year) => (
-              <SelectItem
-                key={year}
-                value={String(year)}
-                className="rounded-lg text-[#3F0000]"
-              >
-                {year}
-              </SelectItem>
-            ))}
-          </SelectField>
-          <SelectField
-            value={filters.month}
-            onChange={(value) => updateQuery("month", value)}
-            ariaLabel="Filter by month"
-          >
-            <SelectItem value={PAID_FOR_MONTH_FILTER} className="rounded-lg text-[#3F0000]">
-              {PAID_FOR_MONTH_FILTER}
-            </SelectItem>
-            {months.map((month) => (
-              <SelectItem
-                key={month.value}
-                value={month.value}
-                className="rounded-lg text-[#3F0000]"
-              >
-                {month.label}
-              </SelectItem>
-            ))}
-          </SelectField>
-          <SelectField
-            value={filters.madeMonth}
-            onChange={(value) => updateQuery("madeMonth", value)}
-            ariaLabel="Filter by payment made month"
-          >
-            <SelectItem value={PAID_IN_MONTH_FILTER} className="rounded-lg text-[#3F0000]">
-              {PAID_IN_MONTH_FILTER}
-            </SelectItem>
-            {months.map((month) => (
-              <SelectItem
-                key={month.value}
-                value={month.value}
-                className="rounded-lg text-[#3F0000]"
-              >
-                {month.label}
-              </SelectItem>
-            ))}
-          </SelectField>
-          <SelectField
-            value={filters.madeYear}
-            onChange={(value) => updateQuery("madeYear", value)}
-            ariaLabel="Filter by payment made year"
-          >
-            <SelectItem value={PAID_IN_YEAR_FILTER} className="rounded-lg text-[#3F0000]">
-              {PAID_IN_YEAR_FILTER}
-            </SelectItem>
-            {yearOptions.map((year) => (
-              <SelectItem
-                key={year}
-                value={String(year)}
-                className="rounded-lg text-[#3F0000]"
-              >
-                {year}
-              </SelectItem>
-            ))}
-          </SelectField>
+          <DateFilter
+            label="Paid For"
+            onSelect={(date) => updateQuery("paidForDate", monthKeyFromDate(date))}
+            displayValue={formatCalendarMonth(filters.paidForDate)}
+            selectedDate={filters.paidForDate ? parseDate(`${filters.paidForDate}-01`) : undefined}
+          />
+          <DateFilter
+            label="Payment Date"
+            onSelect={(date) => updateQuery("paymentDate", dateKey(date))}
+            displayValue={formatCalendarDate(filters.paymentDate)}
+            selectedDate={parseDate(filters.paymentDate)}
+          />
           <Button
             type="button"
             variant="outline"
@@ -1024,6 +991,50 @@ function Label({
       <span className="text-[14px] font-semibold text-[#3F0000]">{text}</span>
       {children}
     </label>
+  );
+}
+
+function DateFilter({
+  label,
+  selectedDate,
+  onSelect,
+  displayValue,
+}: {
+  label: string;
+  selectedDate?: Date;
+  onSelect: (date: Date) => void;
+  displayValue: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 w-full justify-between rounded-xl border-[#FFAA83] bg-white px-3 text-[14px] font-medium text-[#3F0000] hover:bg-[#FFEADE]"
+            aria-label={`${label}: ${displayValue}`}
+          />
+        }
+      >
+        <span className={selectedDate ? "" : "text-[#737373]"}>{displayValue}</span>
+        <CalendarDays className="size-4 text-[#9A3412]" aria-hidden="true" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto p-0">
+        <Calendar
+          mode="single"
+          selected={selectedDate}
+          onSelect={(date) => {
+            if (date) {
+              onSelect(date);
+              setOpen(false);
+            }
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 
