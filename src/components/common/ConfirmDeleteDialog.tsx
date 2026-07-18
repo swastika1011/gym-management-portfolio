@@ -19,26 +19,32 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export interface ConfirmDeleteDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   title: string;
   description: string;
   confirmText: string;
   cancelText: string;
   onConfirm: () => void | Promise<void>;
+  isConfirming?: boolean;
   trigger?: ReactElement;
   className?: string;
 }
 
 export function ConfirmDeleteDialog({
+  open,
+  onOpenChange,
   title,
   description,
   confirmText,
   cancelText,
   onConfirm,
+  isConfirming = false,
   trigger,
   className,
 }: ConfirmDeleteDialogProps) {
   return (
-    <AlertDialog>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogTrigger
         render={
           trigger ?? (
@@ -72,11 +78,15 @@ export function ConfirmDeleteDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="border-[#FFAA83] bg-[#FFEADE]/50">
-          <AlertDialogCancel className="rounded-xl border-[#FFAA83] bg-white [font-family:Raleway,var(--font-geist-sans),sans-serif] text-[14px] font-semibold text-[#3F0000] hover:bg-[#FFEADE]">
+          <AlertDialogCancel
+            disabled={isConfirming}
+            className="rounded-xl border-[#FFAA83] bg-white [font-family:Raleway,var(--font-geist-sans),sans-serif] text-[14px] font-semibold text-[#3F0000] hover:bg-[#FFEADE]"
+          >
             {cancelText}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
+            disabled={isConfirming}
             className="rounded-2xl bg-[#B91C1C] [font-family:Raleway,var(--font-geist-sans),sans-serif] text-[14px] font-semibold text-white hover:bg-[#991B1B]"
           >
             {confirmText}
