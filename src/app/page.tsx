@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Info, ShieldUser, UserRound } from "lucide-react";
+import { Info, ShieldUser, UserRound, Dumbbell } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +27,7 @@ export default function Home() {
             WELCOME TO
           </p>
           <h1 className="font-heading text-[2.7rem] leading-[0.94] font-extrabold tracking-[-0.055em] sm:text-[3.1rem] md:text-[3.5rem] xl:text-[3.65rem]">
-            <span className="block">MAD MUSCLES</span>
+            <span className="block">FIT  LIFE</span>
             <span className="landing-gym-gradient block">GYM</span>
           </h1>
 
@@ -76,17 +76,15 @@ export default function Home() {
 
         <div className="relative mx-auto flex w-full max-w-[32rem] items-center justify-center pb-16 sm:pb-20 lg:max-w-none lg:translate-x-[4%] lg:pb-0">
           <div aria-hidden className="landing-oval absolute h-[15rem] w-[15rem] sm:h-[20rem] sm:w-[20rem] md:h-[24rem] md:w-[24rem] lg:h-[min(39vw,28rem)] lg:w-[min(39vw,28rem)]" />
-          <div className="relative w-[66%] max-w-[22rem] pt-[3%] lg:w-[60%]">
-            <Image
-              src="/logo.png"
-              alt="Mad Muscles Gym logo"
-              width={900}
-              height={900}
-              priority
-              className="h-auto w-full object-contain drop-shadow-[0_14px_20px_rgba(63,0,0,0.06)]"
-              sizes="(max-width: 1023px) 70vw, 43vw"
-            />
-          </div>
+<div className="relative w-[24rem] h-[24rem] sm:w-[28rem] sm:h-[28rem] lg:w-[30rem] lg:h-[30rem] flex items-center justify-center">
+  <Image
+    src="/logoo.png"
+    alt="Fit Life Gym logo"
+    fill
+    priority
+    className="object-contain scale-[1.0] drop-shadow-[0_25px_35px_rgba(255,102,0,0.22)]"
+  />
+</div>
         </div>
       </section>
     </main>

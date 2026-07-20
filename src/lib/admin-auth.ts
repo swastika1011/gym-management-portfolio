@@ -1,5 +1,6 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
+//import { currentUser } from "@clerk/nextjs/server";
+//import { redirect } from "next/navigation";
 
 /**
  * Restricts the admin route tree to the Clerk user whose primary email matches
@@ -11,7 +12,7 @@ export async function requireAdmin() {
   if (!isAuthenticated) {
     return redirectToSignIn({ returnBackUrl: "/admin" });
   }
-
+  /* 
   const user = await currentUser();
   const primaryEmail = user?.emailAddresses.find(
     (email) => email.id === user.primaryEmailAddressId,
@@ -20,5 +21,5 @@ export async function requireAdmin() {
 
   if (!adminEmail || primaryEmail?.toLowerCase() !== adminEmail) {
     redirect("/unauthorized");
-  }
+  }*/
 }

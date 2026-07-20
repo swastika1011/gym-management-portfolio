@@ -81,7 +81,7 @@ export function Sidebar({
       <div className="flex h-20 shrink-0 items-center gap-3 border-b border-[#FFAA83] px-4">
   <div className="grid size-10 place-items-center overflow-hidden rounded-2xl bg-[#FFEADE]">
     <Image
-      src="/logo.png"
+      src="/logoo.png"
       alt="Gym Logo"
       width={40}
       height={40}
@@ -90,7 +90,7 @@ export function Sidebar({
   </div>
         <div className="min-w-0">
           <p className="[font-family:var(--font-manrope),sans-serif] text-[18px] font-semibold leading-6">
-            Mad Muscles Gym
+            Fit Life Gym
           </p>
           <p className="[font-family:var(--font-raleway),sans-serif] text-[13px] text-[#737373]">
             Management
