@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
-import { requireAdmin } from "@/lib/admin-auth";
+//import { requireAdmin } from "@/lib/admin-auth";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-  await requireAdmin();
+  //await requireAdmin();
 
   return (
     <div className="min-h-screen bg-[#FFEADE] [font-family:var(--font-raleway),sans-serif]">

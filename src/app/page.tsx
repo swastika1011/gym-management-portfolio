@@ -76,12 +76,13 @@ export default function Home() {
 
         <div className="relative mx-auto flex w-full max-w-[32rem] items-center justify-center pb-16 sm:pb-20 lg:max-w-none lg:translate-x-[4%] lg:pb-0">
           <div aria-hidden className="landing-oval absolute h-[15rem] w-[15rem] sm:h-[20rem] sm:w-[20rem] md:h-[24rem] md:w-[24rem] lg:h-[min(39vw,28rem)] lg:w-[min(39vw,28rem)]" />
-<div className="relative w-[24rem] h-[24rem] sm:w-[28rem] sm:h-[28rem] lg:w-[30rem] lg:h-[30rem] flex items-center justify-center">
+<div className="relative aspect-square w-full max-w-[24rem] sm:max-w-[28rem] lg:max-w-[30rem]">
   <Image
     src="/logoo.png"
     alt="Fit Life Gym logo"
     fill
     priority
+    sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 480px"
     className="object-contain scale-[1.0] drop-shadow-[0_25px_35px_rgba(255,102,0,0.22)]"
   />
 </div>
