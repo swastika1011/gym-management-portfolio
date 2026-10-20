@@ -15,7 +15,7 @@ const raleway = Raleway({
 });
 
 export const metadata: Metadata = {
-  title: "Mad Muscles Gym | Management System",
+  title: "Fit Life Gym | Management System",
   description: "Manage your gym from one powerful dashboard.",
 };
 
